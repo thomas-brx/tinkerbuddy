@@ -1,0 +1,11 @@
+#!/usr/bin/env bash
+
+echo "$*" > /tmp/cmdpipe_in
+exec 3<> /tmp/cmdpipe_out
+
+while read -r -u 3 response; do
+  if [[ $response == "DONE" ]]; then
+    break
+  fi
+  echo "$response"
+done

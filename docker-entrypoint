@@ -1,0 +1,54 @@
+#!/usr/bin/env bash
+
+function send_file {
+  file=$1
+
+  echo "cat <<TINKER_FILE | base64 -d > $file"
+  base64 "$file"
+  echo "TINKER_FILE"
+}
+
+# echo "creating fifos"
+
+mkfifo /tmp/cmdpipe_in
+mkfifo /tmp/cmdpipe_out
+
+exec 4<> /tmp/cmdpipe_in
+
+has_copied_tinker=0
+
+trap 'exit 0' INT QUIT TERM
+
+while :; do
+  if read -r -u 4 command; then
+    if [[ $has_copied_tinker == 0 ]]; then
+      send_file /tmp/tinker.phar
+      has_copied_tinker=1
+    fi
+
+    send_file /tmp/tinker_data.txt
+
+    (
+      echo "echo TINKER_START"
+      echo "php $command"
+      echo "echo"
+      echo "echo TINKER_END"
+    )
+
+    is_response=0
+    while read -r response ; do
+      if [[ $response = "TINKER_START" ]]; then
+        is_response=1
+        continue
+      fi
+      if [[ $response = "TINKER_END" ]]; then
+        break
+      fi
+      if [[ $is_response = 1 ]]; then
+        echo "$response" > /tmp/cmdpipe_out
+      fi
+    done
+    echo "" > /tmp/cmdpipe_out
+    echo "DONE" > /tmp/cmdpipe_out
+  fi
+done

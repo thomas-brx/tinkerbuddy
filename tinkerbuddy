@@ -1,0 +1,22 @@
+#!/usr/bin/env bash
+
+echo "Starting a Docker container called tinkerbuddy."
+echo
+echo "Open Tinkerwell and use Configure Docker:"
+echo "* Select tinkerbuddy container"
+echo "* Enter a working directory, as Tinkerwell will not be able to automatically resolve"
+
+sshpipe_in=$(mktemp -u)
+sshpipe_out=$(mktemp -u)
+
+mkfifo -m 600 $sshpipe_in
+mkfifo -m 600 $sshpipe_out
+
+# Command that opens an interactive shell in the background, could be ssh, kubectl exec, docker exec etc, or a chain of those.
+kubectl exec -i <pod> < "$sshpipe_in" 2>&1 | tee "$sshpipe_out" >/dev/null &
+ssh_pid=$!
+trap 'rm $sshpipe_in $sshpipe_out; kill $ssh_pid' EXIT
+
+# Start tinkerbuddy and cross-connect stdin/stdout with the above command
+docker run -i --rm --name tinkerbuddy thomasbrx/tinkerbuddy:latest < "$sshpipe_out" > "$sshpipe_in"
+
